@@ -1,8 +1,16 @@
-
 import os
 import sys
 import re
 import hashlib
+from tqdm import tqdm
+
+
+def myexcepthook(type, value, traceback, oldhook=sys.excepthook):
+    oldhook(type, value, traceback)
+    input("Press RETURN. ")
+
+
+sys.excepthook = myexcepthook
 
 
 class CommandLineParser:
@@ -20,7 +28,6 @@ class CommandLineParser:
             alias = desc.get('alias')
             referral = desc.get('referral')
             kind = desc.get('kind')
-            func = desc.get('func')
 
             name_str = '-' + name
             alias_str = ', -' + alias if alias else ''
@@ -89,7 +96,7 @@ class CommandLineParser:
                 continue
             val = desc['default']
             name = desc['name']
-            if i < argc - 1 and not argv[i + 1].startswith('-'):
+            if i < argc - 1:
                 val = argv[i + 1]
                 kind = desc['kind']
                 val = handle_type(val, kind)
@@ -107,28 +114,40 @@ class CommandLineParser:
         return ret
 
 
+def handle_command(com_parser: CommandLineParser, command_list: list, env: dict = None):
+    assert com_parser, 'com_parser is none.'
+    com_dict = com_parser.parse(command_list)
+    for k, v in com_dict.items():
+        if type(v) == type(lambda: True):
+            v()
+        else:
+            if env and env.get(k):
+                env[k] = v
+
+
 # 设置输入循环
 def set_input_loop(com_parser: CommandLineParser, env: dict = None):
+    assert com_parser, 'com_parser is none.'
+    sys_args = sys.argv[1:]
+    handle_command(com_parser, sys_args)
+
     com_parser.add_desc(name='help', alias='h',
                         func=com_parser.show_comm_list, referral='Show help.')
     print('输入-exit或-e后退出.(-help或-h查看所有指令)')
-    com_parser.add_desc(name='exit', alias='e', func=sys.exit,)
+    com_parser.add_desc(name='exit', alias='e',
+                        func=sys.exit, referral='Exit.')
     while True:
-        command_str = input('请输入指令：')
+        command_str = input('>')
         if not command_str:
             continue
         command_list = command_str.split(' ')
-        com_dict = com_parser.parse(command_list)
-        for k, v in com_dict.items():
-            if type(v) == type(lambda: True):
-                v()
-            else:
-                if env and env.get(k):
-                    env[k] = v
+        handle_command(com_parser, command_list, env)
 
 
 def get_md5(data):
-    return hashlib.md5(data).hexdigest()
+    md5 = hashlib.md5()
+    md5.update(data)
+    return md5.hexdigest()
 
 
 # 格式化路径
@@ -137,9 +156,8 @@ def get_format_path(path):
     return re.sub(r'(\\|\/)+', r'\\\\', path)
 
 
-def get_exe_dir():
-    argv = sys.argv
-    return os.path.dirname(argv[0])
+def get_exe_path():
+    return os.path.split(os.path.abspath(sys.argv[0]))
 
 
 # 读取配置
@@ -149,6 +167,8 @@ def read_init_config(path: str, encoding: str = 'utf-8') -> dict:
     with open(path, 'r', encoding=encoding) as f:
         for line in f.readlines():
             line = line.strip()
+            if line.startswith('#'):
+                continue
             splits = line.split('=')
             if len(splits) < 2:
                 continue
@@ -157,24 +177,36 @@ def read_init_config(path: str, encoding: str = 'utf-8') -> dict:
 
 
 # 路径中是否存在符合条件的文件
-def walk_tree(root: str, pred):
+def walk_tree(root: str, pred, is_show_pbar=False):
+    pbar = None
+    listdir = os.listdir(root)
+    if is_show_pbar:
+        pbar = tqdm(total=len(listdir))
+        pbar.set_description(f'walk {root}:')
+
     dirs = []
-    for f in os.listdir(root):
+    for f in listdir:
         path = os.path.join(root, f)
         if os.path.isdir(path):
             dirs.append(path)
         else:
-            if pred(path) == True:
+            if pbar:
+                pbar.update()
+            if pred(path):
                 return True
     for f in dirs:
-        if walk_tree(f, pred) == True:
+        if pbar:
+            pbar.update()
+        if walk_tree(f, pred, is_show_pbar):
             return True
+    if pbar:
+        pbar.close()
     return False
 
 
-# if __name__ == '__main__':
-#     cmd_parser = CommandLineParser()
-#     cmd_parser.add_desc(name='test', kind='float',
-#                         func=lambda v: print(f'111:{v}'), default=0.7)
-#     cmd_parser.add_desc(name='size', kind='float', default=1.0, referral='lalalalalalalalallala')
-#     set_input_loop(cmd_parser)
+def rgba2hex(r, g, b):
+    return ('{:02X}' * 3).format(r, g, b)
+
+
+def hex2rgba(hex):
+    return tuple(int(hex[i:i+2], 16) for i in (0, 2, 4))
