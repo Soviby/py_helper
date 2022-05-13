@@ -113,23 +113,33 @@ class CommandLineParser:
 
         return ret
 
+    def handle_command(self, command_list: list, env: dict = None):
+        com_dict = self.parse(command_list)
+        for k, v in com_dict.items():
+            if type(v) == type(lambda: True):
+                v()
+            else:
+                if env and env.get(k):
+                    env[k] = v
+
 
 def handle_command(com_parser: CommandLineParser, command_list: list, env: dict = None):
     assert com_parser, 'com_parser is none.'
-    com_dict = com_parser.parse(command_list)
-    for k, v in com_dict.items():
-        if type(v) == type(lambda: True):
-            v()
-        else:
-            if env and env.get(k):
-                env[k] = v
+    com_parser.handle_command(command_list, env)
+
+
+def handle_sys_argv_command(com_parser: CommandLineParser):
+    assert com_parser, 'com_parser is none.'
+    sys_args = sys.argv[1:]
+    if not sys_args:
+        return
+    handle_command(com_parser, sys_args)
 
 
 # 设置输入循环
 def set_input_loop(com_parser: CommandLineParser, env: dict = None):
     assert com_parser, 'com_parser is none.'
-    sys_args = sys.argv[1:]
-    handle_command(com_parser, sys_args)
+    handle_sys_argv_command(com_parser)
 
     com_parser.add_desc(name='help', alias='h',
                         func=com_parser.show_comm_list, referral='Show help.')
