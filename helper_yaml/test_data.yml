@@ -1,0 +1,31 @@
+# @a :aaaaa 
+# @b: bbbbb 
+# @extend_path:./test_extend_data.yml
+# @template_path : ./template_data.yml   
+# @extend($extend_path$)
+# @template(  $template_path$  )
+# @extend(  ./test_extend_data1.yml )
+
+Arts:
+  index: 4
+  title: $a$
+QA:
+  index: 3
+  title: QA工具
+Program:
+  index: 2
+  title: 程序工具$b$
+Project:
+  index: 1
+  title: $Program$
+Default:
+  index: 0
+  title: $Default$
+Test1:
+  index: 0
+  title: $extend_path$
+  list: 
+    - 1
+    - $a$
+    - $Default$
+    - $w$

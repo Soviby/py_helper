@@ -2,7 +2,10 @@ import os
 import sys
 import re
 import hashlib
+import _thread
+import time
 from tqdm import tqdm
+from soviby import helper_yaml
 
 
 def myexcepthook(type, value, traceback, oldhook=sys.excepthook):
@@ -17,8 +20,9 @@ class CommandLineParser:
     def __init__(self):
         self.desc_map = {}
 
-    def show_comm_list(self, ):
-        print(f'Commands:')
+    # 返回指令集说明字符，list<str>
+    def show_comm_list(self, arg_symbol: tuple = ('<', '>')):
+        str_list = []
 
         def show_comm(desc):
             if desc.get('is_print'):
@@ -31,14 +35,15 @@ class CommandLineParser:
 
             name_str = '-' + name
             alias_str = ', -' + alias if alias else ''
-            kind_str = f'<{kind}>' if kind else ''
+            kind_str = f'{arg_symbol[0]}{kind}{arg_symbol[1]}' if kind else ''
             referral_str = referral if referral else ''
 
-            print(f'{name_str}{alias_str} {kind_str}\t{referral_str}')
+            str_list.append(
+                f'{name_str}{alias_str} {kind_str}    {referral_str}')
             desc['is_print'] = alias
-
         for k, v in self.desc_map.items():
             show_comm(v)
+        return str_list
 
     def add_desc(self, name: str, alias: str = None, kind: str = None, default: any = None, func: any = None, referral: str = None):
         desc = {
@@ -104,9 +109,9 @@ class CommandLineParser:
             if func:
                 def _func():
                     if val:
-                        func(val)
+                        return func(val)
                     else:
-                        func()
+                        return func()
                 ret[name] = _func
             else:
                 ret[name] = val
@@ -115,17 +120,19 @@ class CommandLineParser:
 
     def handle_command(self, command_list: list, env: dict = None):
         com_dict = self.parse(command_list)
+        result = None
         for k, v in com_dict.items():
             if type(v) == type(lambda: True):
-                v()
+                result = v()
             else:
                 if env and env.get(k):
                     env[k] = v
+        return result
 
 
 def handle_command(com_parser: CommandLineParser, command_list: list, env: dict = None):
     assert com_parser, 'com_parser is none.'
-    com_parser.handle_command(command_list, env)
+    return com_parser.handle_command(command_list, env)
 
 
 def handle_sys_argv_command(com_parser: CommandLineParser):
@@ -136,13 +143,17 @@ def handle_sys_argv_command(com_parser: CommandLineParser):
     handle_command(com_parser, sys_args)
 
 
+def show_commands(com_parser: CommandLineParser):
+    comm_list = com_parser.show_comm_list()
+    print('Show Commands:')
+    for i, v in enumerate(comm_list):
+        print(v)
+
+
 # 设置输入循环
 def set_input_loop(com_parser: CommandLineParser, env: dict = None):
-    assert com_parser, 'com_parser is none.'
-    handle_sys_argv_command(com_parser)
-
     com_parser.add_desc(name='help', alias='h',
-                        func=com_parser.show_comm_list, referral='Show help.')
+                        func=lambda: show_commands(com_parser), referral='Show help.')
     print('输入-exit或-e后退出.(-help或-h查看所有指令)')
     com_parser.add_desc(name='exit', alias='e',
                         func=sys.exit, referral='Exit.')
@@ -151,10 +162,12 @@ def set_input_loop(com_parser: CommandLineParser, env: dict = None):
         if not command_str:
             continue
         command_list = command_str.split(' ')
-        handle_command(com_parser, command_list, env)
+        result = handle_command(com_parser, command_list, env)
+        if result:
+            print(result)
 
 
-def get_md5(data):
+def get_md5(data: bytes):
     md5 = hashlib.md5()
     md5.update(data)
     return md5.hexdigest()
@@ -170,9 +183,16 @@ def get_exe_path():
     return os.path.split(os.path.abspath(sys.argv[0]))
 
 
-# 读取配置
+# 读取配置,yaml格式
 # 返回 字典:key(string)->value(string)
-def read_init_config(path: str, encoding: str = 'utf-8') -> dict:
+def read_config_by_yml(path: str, func, encoding: str = 'utf-8') -> dict:
+    yml_data = helper_yaml.load(path,encoding)
+    func(yml_data.data_map)
+
+    
+# 读取配置 ,以=为分割
+# 返回 字典:key(string)->value(string)
+def read_config_by_str(path: str, encoding: str = 'utf-8') -> dict:
     ret = {}
     with open(path, 'r', encoding=encoding) as f:
         for line in f.readlines():
@@ -220,3 +240,15 @@ def rgba2hex(r, g, b):
 
 def hex2rgba(hex):
     return tuple(int(hex[i:i+2], 16) for i in (0, 2, 4))
+
+
+def delay(ms, func):
+    def _handle():
+        time.sleep(ms / 1000)
+        func()
+    _thread.start_new_thread(_handle, ())
+
+
+
+if __name__ == "__main__":
+   pass
