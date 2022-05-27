@@ -2,8 +2,6 @@ import os
 import sys
 import re
 import hashlib
-import _thread
-import time
 from tqdm import tqdm
 from soviby import helper_yaml
 
@@ -150,13 +148,17 @@ def show_commands(com_parser: CommandLineParser):
         print(v)
 
 
+def set_command_exit(com_parser: CommandLineParser):
+    print('输入-exit或-e后退出.(-help或-h查看所有指令)')
+    com_parser.add_desc(name='exit', alias='e',
+                        func=sys.exit, referral='Exit.')
+
+
 # 设置输入循环
 def set_input_loop(com_parser: CommandLineParser, env: dict = None):
     com_parser.add_desc(name='help', alias='h',
                         func=lambda: show_commands(com_parser), referral='Show help.')
-    print('输入-exit或-e后退出.(-help或-h查看所有指令)')
-    com_parser.add_desc(name='exit', alias='e',
-                        func=sys.exit, referral='Exit.')
+    set_command_exit(com_parser)
     while True:
         command_str = input('>')
         if not command_str:
@@ -241,14 +243,3 @@ def rgba2hex(r, g, b):
 def hex2rgba(hex):
     return tuple(int(hex[i:i+2], 16) for i in (0, 2, 4))
 
-
-def delay(ms, func):
-    def _handle():
-        time.sleep(ms / 1000)
-        func()
-    _thread.start_new_thread(_handle, ())
-
-
-
-if __name__ == "__main__":
-   pass
