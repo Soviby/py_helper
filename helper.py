@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import hashlib
+from xml.etree.ElementTree import tostring
 from tqdm import tqdm
 from soviby import helper_yaml
 
@@ -60,39 +61,55 @@ class CommandLineParser:
         list = []
         for key, value in argv.items():
             list.append('-' + key)
-            list.append(value)
+            value_list = value.split(' ')
+            list.extend(value_list)
         return self.parse(list, 0)
 
     def parse(self, argv: list[str], offset: int = 0):
         ret = {}
         argc = len(argv)
 
-        def handle_type(val: str, kind: str):
-            if kind == 'none':
-                return None
-            if kind == 'str':
-                return str(val)
-            elif kind == 'float':
-                return float(val)
-            elif kind == 'bool':
-                return bool(int(val))
-            elif kind == 'int':
-                return int(val)
-            elif kind == 'path':
-                return get_format_path(handle_type(val, 'str'))
-            elif not re.search(r'^list\[(.+)\]', kind) is None:
-                match_obj = re.search(r'^list\[(.+)\]', kind)
-                base_type = match_obj.group(1)
-                str_list = val.split('|')
-                val_list = []
-                for str_item in str_list:
-                    val_list.append(handle_type(str_item, base_type))
-                return val_list
+        def handle_type(val, kind: str):
+            try:
+                if kind == 'none':
+                    return None
+                if kind == 'str':
+                    return str(val)
+                elif kind == 'float':
+                    return float(val)
+                elif kind == 'bool':
+                    return bool(int(val))
+                elif kind == 'int':
+                    return int(val)
+                elif kind == 'path':
+                    return get_format_path(handle_type(val, 'str'))
+                elif re.search(r'^list\[(.+)\]', kind):
+                    match_obj = re.search(r'^list\[(.+)\]', kind)
+                    base_type = match_obj.group(1)
+                    val_list = []
+                    for str_item in val:
+                        val_list.append(handle_type(str_item, base_type))
+                    return val_list
+            except Exception as e:
+                print(e)
+
+        def get_val(index):
+            if index >= argc:
+                return
+            value_list = []
+            for i in range(index + 1, argc):
+                arg = argv[i]
+                if is_key_by_str(arg):
+                    break
+                value_list.append(arg)
+
+            return value_list if len(value_list) > 1 else value_list[0]
 
         for i in range(offset, argc):
             arg = argv[i]
-            if not arg.startswith('-'):
+            if not is_key_by_str(arg):
                 continue
+
             key = arg[1:]
             desc = self.desc_map.get(key)
             if desc is None:
@@ -100,7 +117,7 @@ class CommandLineParser:
             val = desc['default']
             name = desc['name']
             if i < argc - 1:
-                val = argv[i + 1]
+                val = get_val(i)
                 kind = desc['kind']
                 val = handle_type(val, kind)
             func = desc['func']
@@ -117,15 +134,24 @@ class CommandLineParser:
         return ret
 
     def handle_command(self, command_list: list, env: dict = None):
-        com_dict = self.parse(command_list)
-        result = None
-        for k, v in com_dict.items():
-            if type(v) == type(lambda: True):
-                result = v()
-            else:
-                if env and env.get(k):
-                    env[k] = v
-        return result
+        try:
+            com_dict = self.parse(command_list)
+            result = None
+            for k, v in com_dict.items():
+                if type(v) == type(lambda: True):
+                    result = v()
+                else:
+                    if not(env is None):
+                        env[k] = v
+                        result = v
+            return result
+        except Exception as e:
+            print(e)
+
+
+def is_key_by_str(key: str):
+    if re.search(r'^-[^0-9].*', key):
+        return True
 
 
 def handle_command(com_parser: CommandLineParser, command_list: list, env: dict = None):
@@ -188,10 +214,10 @@ def get_exe_path():
 # 读取配置,yaml格式
 # 返回 字典:key(string)->value(string)
 def read_config_by_yml(path: str, func, encoding: str = 'utf-8') -> dict:
-    yml_data = helper_yaml.load(path,encoding)
+    yml_data = helper_yaml.load(path, encoding)
     func(yml_data.data_map)
 
-    
+
 # 读取配置 ,以=为分割
 # 返回 字典:key(string)->value(string)
 def read_config_by_str(path: str, encoding: str = 'utf-8') -> dict:
@@ -242,4 +268,3 @@ def rgba2hex(r, g, b):
 
 def hex2rgba(hex):
     return tuple(int(hex[i:i+2], 16) for i in (0, 2, 4))
-
