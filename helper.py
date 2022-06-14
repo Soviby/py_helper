@@ -268,3 +268,10 @@ def rgba2hex(r, g, b):
 
 def hex2rgba(hex):
     return tuple(int(hex[i:i+2], 16) for i in (0, 2, 4))
+
+
+# 判断相似度，t为相似度(float)
+def compare_by_thres(a, b, t):
+    if a > b:
+        a, b = b, a
+    return b * t <= a
