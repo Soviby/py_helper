@@ -1,4 +1,5 @@
 from soviby import helper
+import soviby.LRU as LRU
 import os
 import yaml
 import re
@@ -6,7 +7,7 @@ import re
 
 class YamlData(object):
     # stream
-    def __init__(self, args):
+    def __init__(self, path: str, **kwargs):
         # 解析：
         # 读取文本
         # 逐行解析，
@@ -20,11 +21,10 @@ class YamlData(object):
         self.original_data_map = {}  # 没用模板替换前的数据
         self.data_map = {}  # 用模板替换后的数据
 
-        path = args.get('path')
-        encoding = args.get('encoding')
-        if path:
-            self.path = path
-            self.load(path, encoding)
+        encoding = kwargs.get('encoding')
+        self.encoding = encoding
+        self.path = path
+        self.load(path, encoding)
 
     def get_abspath(self, path):
         if os.path.isabs(path):
@@ -43,6 +43,7 @@ class YamlData(object):
                     break
                 if line.startswith('#'):
                     line = line[1:]
+                line = line.strip()
                 next_line_index = next_line_index+1
                 line, _ = template_replace(line, self.ref_map)
                 # 进行模板替换
@@ -69,10 +70,21 @@ class YamlData(object):
 
 
 line_func_map = {
-    r'@extend\((.+)\)': lambda self, matchObj: line_extend_func(self, matchObj),
-    r'@template\((.+)\)': lambda self, matchObj: line_template_func(self, matchObj),
-    r'@([^:]+):([^:]+)': lambda self, matchObj: line_ref_func(self, matchObj),
+    r'^@extend\((.+)\)': lambda self, matchObj: line_extend_func(self, matchObj),
+    r'^@template\((.+)\)': lambda self, matchObj: line_template_func(self, matchObj),
+    r'^@([^:]+?):(.+)': lambda self, matchObj: line_ref_func(self, matchObj),
 }
+
+
+def _create_func(path, kwargs):
+    return YamlData(path, encoding=kwargs.get('encoding'))
+
+
+def _destroy_func(yaml_data):
+    pass
+
+
+LRU_mgr = LRU.LRUManager(create_func=_create_func, destroy_func=_destroy_func)
 
 
 def line_extend_func(self, matchObj):
@@ -80,7 +92,7 @@ def line_extend_func(self, matchObj):
     if path:
         path = path.strip()
         path = self.get_abspath(path)
-        extend = load(path)
+        extend = LRU_mgr.get_item(path, encoding=self.encoding)
         self.extend_list.append(extend)
         self.ref_map = map_update(self.ref_map, extend.ref_map)
 
@@ -90,7 +102,7 @@ def line_template_func(self, matchObj):
     if path:
         path = path.strip()
         path = self.get_abspath(path)
-        template = load(path)
+        template = LRU_mgr.get_item(path, encoding=self.encoding)
         self.template_list.append(template)
         self.ref_map = map_update(self.ref_map,  template.data_map)
 
@@ -154,4 +166,12 @@ def template_replace(dist: any, map: dict) -> tuple:
 
 
 def load(path, encoding: str = 'utf-8'):
-    return YamlData({'path': path, 'encoding': encoding})
+    return LRU_mgr.get_item(path, encoding=encoding).data_map
+
+
+def save(path, aproject):
+    str = yaml.dump(aproject)
+    with open(path, "w") as fo:
+        fo.write(str)
+
+

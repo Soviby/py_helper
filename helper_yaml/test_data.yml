@@ -4,7 +4,6 @@
 # @template_path : ./template_data.yml   
 # @extend($extend_path$)
 # @template(  $template_path$  )
-# @extend(  ./test_extend_data1.yml )
 
 Arts:
   index: 4
