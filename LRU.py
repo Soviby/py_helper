@@ -1,7 +1,4 @@
 
-from re import S
-
-
 class LRUItem(object):
     def __init__(self):
         self.next = None
@@ -12,7 +9,7 @@ class LRUItem(object):
 
 
 class LRUManager(object):
-    def __init__(self, create_func, destroy_func, old_capacity: int = 3, young_capacity: int = 5, old_threshold: int = 2):
+    def __init__(self, old_capacity: int = 3, young_capacity: int = 5, old_threshold: int = 2):
         self.old_capacity = old_capacity  # old 最大容量
         self.young_capacity = young_capacity  # young 最大容量
         self.old_threshold = old_threshold  # Old 门槛   ,需要超过门槛
@@ -23,11 +20,22 @@ class LRUManager(object):
         self.young_tail = None
         self.old_head = None
         self.old_tail = None
-        self.create_func = create_func
-        self.destroy_func = destroy_func
 
-    def get_item(self, path: str, **kwargs):
-        id = kwargs.get('id') if kwargs.get('id') else path
+    def get_LRU_item(self, func):
+        """
+        decorator
+        """
+        def _func(id, *args, **kwargs):
+            return self.get_item(id, func, *args, **kwargs)
+        return _func
+
+    def destroy_LRU_item(self, func):
+        """
+        decorator
+        """
+        self.destroy_func = func
+
+    def get_item(self, id: str, create_func, *args, **kwargs):
         # 查找 item_map，若没有则创建
         # 刷新激活次数
         # 返回item content
@@ -35,7 +43,7 @@ class LRUManager(object):
         if not item:
             item = LRUItem()
             item.id = id
-            content = self.create_func(path, kwargs)
+            content = create_func(id, *args, **kwargs)
             item.content = content
             self.item_map[id] = item
 
@@ -43,7 +51,8 @@ class LRUManager(object):
         return item.content
 
     def destroy_item(self, item: LRUItem):
-        self.destroy_func(item.content)
+        if self.destroy_func:
+            self.destroy_func(item.content)
         attach_count = item.attach_count
         if attach_count < self.old_threshold:
             self.young_head, self.young_tail, self.young_count = unlink_item(
@@ -59,25 +68,53 @@ class LRUManager(object):
         if attach_count > self.old_threshold:
             if self.old_head != item:
                 self.old_head, self.old_tail, self.old_count = unlink_item(
-                    item, self.old_head, self.old_tail, self.old_count)
+                    item,
+                    self.old_head,
+                    self.old_tail,
+                    self.old_count
+                )
                 self.old_head, self.old_tail, self.old_count = link_item(
-                    item, self.old_head, self.old_tail, self.old_count)
+                    item,
+                    self.old_head,
+                    self.old_tail,
+                    self.old_count
+                )
         elif attach_count == 0:
             self.young_head, self.young_tail, self.young_count = link_item(
-                item, self.young_head, self.young_tail, self.young_count)
+                item,
+                self.young_head,
+                self.young_tail,
+                self.young_count
+            )
             if self.young_count > self.young_capacity:
                 self.destroy_item(self.young_tail)
         elif attach_count < self.old_threshold:
             if self.young_head != item:
                 self.young_head, self.young_tail, self.young_count = unlink_item(
-                    item, self.young_head, self.young_tail, self.young_count)
+                    item,
+                    self.young_head,
+                    self.young_tail,
+                    self.young_count
+                )
                 self.young_head, self.young_tail, self.young_count = link_item(
-                    item, self.young_head, self.young_tail, self.young_count)
+                    item,
+                    self.young_head,
+                    self.young_tail,
+                    self.young_count
+                )
         else:
             self.young_head, self.young_tail, self.young_count = unlink_item(
-                item, self.young_head, self.young_tail, self.young_count)
+                item,
+                self.young_head,
+                self.young_tail,
+                self.young_count
+            )
             self.old_head, self.old_tail, self.old_count = link_item(
-                item, self.old_head, self.old_tail, self.old_count)
+                item,
+                self.old_head,
+                self.old_tail,
+                self.old_count
+            )
             if self.old_count > self.old_capacity:
                 self.destroy_item(self.old_tail)
 
@@ -110,4 +147,3 @@ def unlink_item(item: LRUItem, out_head: LRUItem, out_tail: LRUItem, out_count: 
     item.prev = item.next = None
     out_count = out_count - 1
     return out_head, out_tail, out_count
-

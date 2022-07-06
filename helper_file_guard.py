@@ -1,7 +1,5 @@
 
 import os
-from soviby import helper_task
-
 
 class FileGuard(object):
     def __init__(self, file_list: list):

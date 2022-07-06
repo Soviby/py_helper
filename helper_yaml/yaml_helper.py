@@ -1,13 +1,11 @@
-from soviby import helper
-import soviby.LRU as LRU
 import os
 import yaml
 import re
-
+from soviby.LRU import LRUManager
 
 class YamlData(object):
     # stream
-    def __init__(self, path: str, **kwargs):
+    def __init__(self, path: str, encoding: str = 'utf-8'):
         # 解析：
         # 读取文本
         # 逐行解析，
@@ -21,7 +19,6 @@ class YamlData(object):
         self.original_data_map = {}  # 没用模板替换前的数据
         self.data_map = {}  # 用模板替换后的数据
 
-        encoding = kwargs.get('encoding')
         self.encoding = encoding
         self.path = path
         self.load(path, encoding)
@@ -33,7 +30,7 @@ class YamlData(object):
         return os.path.abspath(os.path.join(dirname, path))
 
     def load(self, path,  encoding: str = 'utf-8'):
-        with open(path,  encoding=encoding) as f:
+        with open(path,  encoding = encoding) as f:
             lines = f.readlines()
             # 解析头部
             next_line_index = 0
@@ -74,17 +71,14 @@ line_func_map = {
     r'^@template\((.+)\)': lambda self, matchObj: line_template_func(self, matchObj),
     r'^@([^:]+?):(.+)': lambda self, matchObj: line_ref_func(self, matchObj),
 }
+LRU_mgr = LRUManager()
 
-
-def _create_func(path, kwargs):
-    return YamlData(path, encoding=kwargs.get('encoding'))
-
-
-def _destroy_func(yaml_data):
-    pass
-
-
-LRU_mgr = LRU.LRUManager(create_func=_create_func, destroy_func=_destroy_func)
+@LRU_mgr.get_LRU_item
+def get_yaml_item(path, encoding: str = 'utf-8'):
+    """
+    获得yaml数据，优先去LRU缓存查找
+    """
+    return YamlData(path, encoding)
 
 
 def line_extend_func(self, matchObj):
@@ -92,7 +86,7 @@ def line_extend_func(self, matchObj):
     if path:
         path = path.strip()
         path = self.get_abspath(path)
-        extend = LRU_mgr.get_item(path, encoding=self.encoding)
+        extend = get_yaml_item(path, encoding=self.encoding)
         self.extend_list.append(extend)
         self.ref_map = map_update(self.ref_map, extend.ref_map)
 
@@ -102,7 +96,7 @@ def line_template_func(self, matchObj):
     if path:
         path = path.strip()
         path = self.get_abspath(path)
-        template = LRU_mgr.get_item(path, encoding=self.encoding)
+        template = get_yaml_item(path, encoding=self.encoding)
         self.template_list.append(template)
         self.ref_map = map_update(self.ref_map,  template.data_map)
 
@@ -166,7 +160,7 @@ def template_replace(dist: any, map: dict) -> tuple:
 
 
 def load(path, encoding: str = 'utf-8'):
-    return LRU_mgr.get_item(path, encoding=encoding).data_map
+    return get_yaml_item(path, encoding).data_map
 
 
 def save(path, aproject):
@@ -175,3 +169,7 @@ def save(path, aproject):
         fo.write(str)
 
 
+
+if __name__ == "__main__":
+    print(load('./test_data.yml'))
+ 
