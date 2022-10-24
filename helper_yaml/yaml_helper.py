@@ -1,7 +1,7 @@
 import os
 import yaml
 import re
-from soviby.LRU import LRUManager
+from ..LRU import LRUManager
 
 class YamlData(object):
     # stream

@@ -4,9 +4,7 @@ import sys
 import re
 import hashlib
 from tqdm import tqdm
-from soviby import helper_yaml
-
-
+from . import helper_yaml
 
 def myexcepthook(type, value, traceback, oldhook=sys.excepthook):
     oldhook(type, value, traceback)
