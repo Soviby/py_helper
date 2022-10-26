@@ -6,6 +6,7 @@ import hashlib
 from tqdm import tqdm
 from . import helper_yaml
 
+
 def myexcepthook(type, value, traceback, oldhook=sys.excepthook):
     oldhook(type, value, traceback)
     input("Press RETURN. ")
@@ -17,6 +18,8 @@ sys.excepthook = myexcepthook
 class CommandLineParser:
     def __init__(self):
         self.desc_map = {}
+        self.add_desc(name='help', alias='h',
+                func=lambda: self.show_commands(), referral='Show help.')
 
     # 返回指令集说明字符，list<str>
     def show_comm_list(self, arg_symbol: tuple = ('<', '>')):
@@ -70,7 +73,7 @@ class CommandLineParser:
 
         def handle_type(val, kind: str):
             try:
-                if kind == 'none':
+                if kind == 'None':
                     return None
                 if kind == 'str':
                     return str(val)
@@ -80,8 +83,6 @@ class CommandLineParser:
                     return bool(int(val))
                 elif kind == 'int':
                     return int(val)
-                elif kind == 'path':
-                    return get_format_path(handle_type(val, 'str'))
                 elif re.search(r'^list\[(.+)\]', kind):
                     match_obj = re.search(r'^list\[(.+)\]', kind)
                     base_type = match_obj.group(1)
@@ -91,6 +92,10 @@ class CommandLineParser:
                     return val_list
             except Exception as e:
                 print(e)
+
+        def is_key_by_str(key: str):
+            if re.search(r'^-[^0-9].*', key):
+                return True
 
         def get_val(index):
             if index >= argc:
@@ -147,49 +152,35 @@ class CommandLineParser:
         except Exception as e:
             print(e)
 
+    def handle_sys_argv_command(self):
+        sys_args = sys.argv[1:]
+        if not sys_args:
+            return
+        self.handle_command(sys_args)
 
-def is_key_by_str(key: str):
-    if re.search(r'^-[^0-9].*', key):
-        return True
+    def show_commands(self):
+        comm_list = self.show_comm_list()
+        print('Show Commands:')
+        for i, v in enumerate(comm_list):
+            print(v)
 
+    def set_command_exit(self):
+        print('输入-exit或-e后退出.(-help或-h查看所有指令)')
+        self.add_desc(name='exit', alias='e',
+                      func=sys.exit, referral='Exit.')
 
-def handle_command(com_parser: CommandLineParser, command_list: list, env: dict = None):
-    assert com_parser, 'com_parser is none.'
-    return com_parser.handle_command(command_list, env)
+    # 设置输入循环
+    def set_input_loop(self, env: dict = None):
+        self.set_command_exit()
+        while True:
+            self.set_input_line(env)
 
-
-def handle_sys_argv_command(com_parser: CommandLineParser):
-    assert com_parser, 'com_parser is none.'
-    sys_args = sys.argv[1:]
-    if not sys_args:
-        return
-    handle_command(com_parser, sys_args)
-
-
-def show_commands(com_parser: CommandLineParser):
-    comm_list = com_parser.show_comm_list()
-    print('Show Commands:')
-    for i, v in enumerate(comm_list):
-        print(v)
-
-
-def set_command_exit(com_parser: CommandLineParser):
-    print('输入-exit或-e后退出.(-help或-h查看所有指令)')
-    com_parser.add_desc(name='exit', alias='e',
-                        func=sys.exit, referral='Exit.')
-
-
-# 设置输入循环
-def set_input_loop(com_parser: CommandLineParser, env: dict = None):
-    com_parser.add_desc(name='help', alias='h',
-                        func=lambda: show_commands(com_parser), referral='Show help.')
-    set_command_exit(com_parser)
-    while True:
+    def set_input_line(self, env: dict = None):
         command_str = input('>')
         if not command_str:
-            continue
+            return
         command_list = command_str.split(' ')
-        result = handle_command(com_parser, command_list, env)
+        result = self.handle_command(command_list, env)
         if result:
             print(result)
 
@@ -198,12 +189,6 @@ def get_md5(data: bytes):
     md5 = hashlib.md5()
     md5.update(data)
     return md5.hexdigest()
-
-
-# 格式化路径
-# 通过filedialog.askopenfilename获得的路径是以"/"分割
-def get_format_path(path):
-    return re.sub(r'(\\|\/)+', r'\\\\', path)
 
 
 def get_exe_path():
