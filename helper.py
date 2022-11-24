@@ -19,7 +19,7 @@ class CommandLineParser:
     def __init__(self):
         self.desc_map = {}
         self.add_desc(name='help', alias='h',
-                func=lambda: self.show_commands(), referral='Show help.')
+                      func=lambda: self.show_commands(), referral='Show help.')
 
     # 返回指令集说明字符，list<str>
     def show_comm_list(self, arg_symbol: tuple = ('<', '>')):
@@ -152,11 +152,11 @@ class CommandLineParser:
         except Exception as e:
             print(e)
 
-    def handle_sys_argv_command(self):
+    def handle_sys_argv_command(self, env: dict = None):
         sys_args = sys.argv[1:]
         if not sys_args:
             return
-        self.handle_command(sys_args)
+        self.handle_command(sys_args, env)
 
     def show_commands(self):
         comm_list = self.show_comm_list()

@@ -3,6 +3,7 @@ import yaml
 import re
 from ..LRU import LRUManager
 
+
 class YamlData(object):
     # stream
     def __init__(self, path: str, encoding: str = 'utf-8'):
@@ -30,7 +31,7 @@ class YamlData(object):
         return os.path.abspath(os.path.join(dirname, path))
 
     def load(self, path,  encoding: str = 'utf-8'):
-        with open(path,  encoding = encoding) as f:
+        with open(path,  encoding=encoding) as f:
             lines = f.readlines()
             # 解析头部
             next_line_index = 0
@@ -72,6 +73,7 @@ line_func_map = {
     r'^@([^:]+?):(.+)': lambda self, matchObj: line_ref_func(self, matchObj),
 }
 LRU_mgr = LRUManager()
+
 
 @LRU_mgr.get_LRU_item
 def get_yaml_item(path, encoding: str = 'utf-8'):
@@ -163,13 +165,11 @@ def load(path, encoding: str = 'utf-8'):
     return get_yaml_item(path, encoding).data_map
 
 
-def save(path, aproject):
-    str = yaml.dump(aproject)
-    with open(path, "w") as fo:
+def save(path, aproject, encoding: str = 'utf-8'):
+    str = yaml.dump(aproject, allow_unicode=encoding)
+    with open(path, mode="w", encoding=encoding) as fo:
         fo.write(str)
-
 
 
 if __name__ == "__main__":
     print(load('./test_data.yml'))
- 
